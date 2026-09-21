@@ -1,0 +1,280 @@
+import docx
+from docx import Document
+from docx.shared import Inches, Pt, RGBColor
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.table import WD_TABLE_ALIGNMENT, WD_ALIGN_VERTICAL
+from docx.oxml import parse_xml, OxmlElement
+from docx.oxml.ns import nsdecls, qn
+
+def create_bank_statement_docx(filename="ethniki_statement_sample.docx"):
+    doc = Document()
+
+    # Define standard colors (National Bank of Greece inspired - Deep Teal/Navy & Gold/Cyan accents)
+    PRIMARY_COLOR = RGBColor(0, 102, 128)   # Deep Teal #006680
+    DARK_TEXT = RGBColor(51, 51, 51)       # Charcoal #333333
+    GRAY_TEXT = RGBColor(102, 102, 102)    # Muted Gray #666666
+    LIGHT_BG = "F4F7F8"                    # Soft Cool Tint
+    BORDER_COLOR = "CCCCCC"                # Light Border
+
+    # Page Margins (A4 Compact Layout)
+    for section in doc.sections:
+        section.top_margin = Inches(0.5)
+        section.bottom_margin = Inches(0.5)
+        section.left_margin = Inches(0.6)
+        section.right_margin = Inches(0.6)
+
+    # Base Helper Functions
+    def set_cell_margins(cell, top=100, bottom=100, left=150, right=150):
+        tcPr = cell._tc.get_or_add_tcPr()
+        tcMar = parse_xml(f'<w:tcMar {nsdecls("w")}><w:top w:w="{top}" w:type="dxa"/><w:bottom w:w="{bottom}" w:type="dxa"/><w:left w:w="{left}" w:type="dxa"/><w:right w:w="{right}" w:type="dxa"/></w:tcMar>')
+        tcPr.append(tcMar)
+
+    def set_cell_background(cell, fill_color):
+        tcPr = cell._tc.get_or_add_tcPr()
+        shd = parse_xml(f'<w:shd {nsdecls("w")} w:fill="{fill_color}"/>')
+        tcPr.append(shd)
+
+    def set_table_borders(table, color="CCCCCC", sz="4", val="single"):
+        tblPr = table._tbl.tblPr
+        borders = parse_xml(f'''
+            <w:tblBorders {nsdecls("w")}>
+                <w:top w:val="{val}" w:sz="{sz}" w:space="0" w:color="{color}"/>
+                <w:bottom w:val="{val}" w:sz="{sz}" w:space="0" w:color="{color}"/>
+                <w:insideH w:val="{val}" w:sz="{sz}" w:space="0" w:color="{color}"/>
+                <w:insideV w:val="none"/>
+                <w:left w:val="none"/>
+                <w:right w:val="none"/>
+            </w:tblBorders>
+        ''')
+        tblPr.append(borders)
+
+    # --- HEADER SECTION ---
+    header_table = doc.add_table(rows=1, cols=2)
+    header_table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    header_table.autofit = False
+
+    # Left Column: Bank Info
+    cell_left = header_table.rows[0].cells[0]
+    cell_left.width = Inches(4.0)
+    p_logo = cell_left.paragraphs[0]
+    p_logo.paragraph_format.space_after = Pt(2)
+    run_logo = p_logo.add_run("ΕΘΝΙΚΗ ΤΡΑΠΕΖΑ ΤΗΣ ΕΛΛΑΔΟΣ")
+    run_logo.font.name = "Arial"
+    run_logo.font.size = Pt(15)
+    run_logo.font.bold = True
+    run_logo.font.color.rgb = PRIMARY_COLOR
+
+    p_sub = cell_left.add_paragraph()
+    p_sub.paragraph_format.space_after = Pt(0)
+    run_sub = p_sub.add_run("Κατάστημα: 182 - Αθήνας (Σταδίου 38)\nΤηλ. Επικοινωνίας: 210 4848484 | www.nbg.gr")
+    run_sub.font.name = "Arial"
+    run_sub.font.size = Pt(8.5)
+    run_sub.font.color.rgb = GRAY_TEXT
+
+    # Right Column: Document Title & Date
+    cell_right = header_table.rows[0].cells[1]
+    cell_right.width = Inches(3.2)
+    p_title = cell_right.paragraphs[0]
+    p_title.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    p_title.paragraph_format.space_after = Pt(2)
+    run_title = p_title.add_run("ΑΝΑΛΥΤΙΚΗ ΚΙΝΗΣΗ ΛΟΓΑΡΙΑΣΜΟΥ")
+    run_title.font.name = "Arial"
+    run_title.font.size = Pt(11)
+    run_title.font.bold = True
+    run_title.font.color.rgb = PRIMARY_COLOR
+
+    p_meta = cell_right.add_paragraph()
+    p_meta.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    p_meta.paragraph_format.space_after = Pt(0)
+    run_meta = p_meta.add_run("Ημερομηνία Έκδοσης: 01/10/2026\nΠερίοδος: 01/09/2026 - 30/09/2026")
+    run_meta.font.name = "Arial"
+    run_meta.font.size = Pt(8.5)
+    run_meta.font.color.rgb = GRAY_TEXT
+
+    # Divider Line
+    p_div = doc.add_paragraph()
+    p_div.paragraph_format.space_before = Pt(6)
+    p_div.paragraph_format.space_after = Pt(12)
+    p_div_border = parse_xml(f'<w:pBdr {nsdecls("w")}><w:bottom w:val="single" w:sz="12" w:space="1" w:color="006680"/></w:pBdr>')
+    p_div._p.get_or_add_pPr().append(p_div_border)
+
+    # --- ACCOUNT & HOLDER DETAILS GRID ---
+    details_table = doc.add_table(rows=2, cols=2)
+    details_table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    details_table.autofit = False
+    
+    col_widths = [Inches(3.6), Inches(3.6)]
+
+    # Customer Data
+    c00 = details_table.cell(0, 0)
+    c00.width = col_widths[0]
+    set_cell_background(c00, LIGHT_BG)
+    set_cell_margins(c00, top=120, bottom=120, left=150, right=150)
+    p = c00.paragraphs[0]
+    p.paragraph_format.space_after = Pt(2)
+    r = p.add_run("ΣΤΟΙΧΕΙΑ ΔΙΚΑΙΟΥΧΟΥ")
+    r.font.bold = True
+    r.font.size = Pt(9)
+    r.font.color.rgb = PRIMARY_COLOR
+    
+    p2 = c00.add_paragraph()
+    p2.paragraph_format.space_after = Pt(0)
+    r2 = p2.add_run("Ονοματεπώνυμο: ΓΕΩΡΓΙΟΣ ΠΑΠΑΔΟΠΟΥΛΟΣ\nΑ.Φ.Μ.: 999999999\nΔιεύθυνση: Λεωφ. Κηφισίας 124, Αθήνα\nΤ.Κ.: 11526")
+    r2.font.size = Pt(8.5)
+    r2.font.color.rgb = DARK_TEXT
+
+    # Account Data
+    c01 = details_table.cell(0, 1)
+    c01.width = col_widths[1]
+    set_cell_background(c01, LIGHT_BG)
+    set_cell_margins(c01, top=120, bottom=120, left=150, right=150)
+    p = c01.paragraphs[0]
+    p.paragraph_format.space_after = Pt(2)
+    r = p.add_run("ΣΤΟΙΧΕΙΑ ΛΟΓΑΡΙΑΣΜΟΥ")
+    r.font.bold = True
+    r.font.size = Pt(9)
+    r.font.color.rgb = PRIMARY_COLOR
+
+    p2 = c01.add_paragraph()
+    p2.paragraph_format.space_after = Pt(0)
+    r2 = p2.add_run("Τύπος Λογαριασμού: Τρεχούμενος / Μισθοδοσίας\nΑριθμός Λογαριασμού: 182/004567-89\nIBAN: GR14 0110 1820 0000 1820 0456 789\nΝόμισμα: EUR (€)")
+    r2.font.size = Pt(8.5)
+    r2.font.color.rgb = DARK_TEXT
+
+    # Empty Spacer Row in Table Layout
+    c10 = details_table.cell(1, 0)
+    c11 = details_table.cell(1, 1)
+    c10.width = col_widths[0]
+    c11.width = col_widths[1]
+    
+    # Financial Summary Data inside table row 1
+    set_cell_background(c10, "FFFFFF")
+    set_cell_background(c11, "FFFFFF")
+    set_cell_margins(c10, top=100, bottom=100, left=150, right=150)
+    set_cell_margins(c11, top=100, bottom=100, left=150, right=150)
+
+    p_sum1 = c10.paragraphs[0]
+    p_sum1.paragraph_format.space_after = Pt(0)
+    r_sum1 = p_sum1.add_run("Αρχικό Υπόλοιπο (01/09/2026): € 1.240,50\nΣύνολο Πιστώσεων (5): € 1.850,00")
+    r_sum1.font.size = Pt(8.5)
+    r_sum1.font.color.rgb = DARK_TEXT
+
+    p_sum2 = c11.paragraphs[0]
+    p_sum2.paragraph_format.space_after = Pt(0)
+    r_sum2 = p_sum2.add_run("Σύνολο Χρεώσεων (7): € -932,10\n")
+    r_sum2.font.size = Pt(8.5)
+    r_sum2.font.color.rgb = DARK_TEXT
+    
+    r_sum3 = p_sum2.add_run("Τελικό Υπόλοιπο (30/09/2026): € 2.158,40")
+    r_sum3.font.size = Pt(9)
+    r_sum3.font.bold = True
+    r_sum3.font.color.rgb = PRIMARY_COLOR
+
+    # Add space before table
+    p_space = doc.add_paragraph()
+    p_space.paragraph_format.space_before = Pt(8)
+    p_space.paragraph_format.space_after = Pt(4)
+    r_head = p_space.add_run("ΑΝΑΛΥΤΙΚΗ ΚΙΝΗΣΗ")
+    r_head.font.bold = True
+    r_head.font.size = Pt(10)
+    r_head.font.color.rgb = PRIMARY_COLOR
+
+    # --- TRANSACTIONS TABLE ---
+    # Data Setup
+    transactions = [
+        ("01/09/2026", "01/09/2026", "ΥΠΟΛΟΙΠΟ ΑΠΟ ΜΕΤΑΦΟΡΑ", "", "1.240,50", "1.240,50"),
+        ("03/09/2026", "03/09/2026", "ΑΓΟΡΑ - SUPER MARKET ΑΒ ΒΑΣΙΛΟΠΟΥΛΟΣ", "-64,20", "", "1.176,30"),
+        ("05/09/2026", "05/09/2026", "ΠΛΗΡΩΜΗ ΛΟΓΑΡΙΑΣΜΟΥ ΔΕΗ GR...891", "-112,00", "", "1.064,30"),
+        ("08/09/2026", "08/09/2026", "ΑΤΜ ΕΘΝΙΚΗΣ - ΑΝΑΛΗΨΗ ΜΕΤΡΗΤΩΝ", "-100,00", "", "964,30"),
+        ("12/09/2026", "12/09/2026", "ΜΙΣΘΟΔΟΣΙΑ - ΕΤΑΙΡΕΙΑ ΑΛΦΑ Α.Ε.", "", "1.650,00", "2.614,30"),
+        ("15/09/2026", "15/09/2026", "ΑΓΟΡΑ - COFFEE ISLAND ATHENS", "-4,50", "", "2.609,80"),
+        ("18/09/2026", "18/09/2026", "ΕΠΙΣΤΡΟΦΗ ΧΡΗΜΑΤΩΝ - ZARA HELLAS", "", "45,00", "2.654,80"),
+        ("21/09/2026", "21/09/2026", "ΠΛΗΡΩΜΗ ΣΥΝΔΡΟΜΗΣ NETFLIX", "-13,99", "", "2.640,81"),
+        ("25/09/2026", "25/09/2026", "ΕΤΑΙΡΕΙΑ ΣΤΑΘΕΡΗΣ/INTERNET COSMOTE", "-37,50", "", "2.603,31"),
+        ("27/09/2026", "27/09/2026", "ΜΕΤΑΦΟΡΑ ΑΠΟ Ι. ΠΑΠΑΔΟΠΟΥΛΟΥ (IRIS)", "", "155,00", "2.758,31"),
+        ("29/09/2026", "29/09/2026", "ΑΓΟΡΑ - ΠΡΑΤΗΡΙΟ ΚΑΥΣΙΜΩΝ BP", "-50,00", "", "2.708,31"),
+        ("30/09/2026", "30/09/2026", "ΕΝΟΙΚΙΟ ΣΠΙΤΙΟΥ - ΜΕΤΑΦΟΡΑ IBAN", "-550,00", "", "2.158,40"),
+    ]
+
+    tx_table = doc.add_table(rows=len(transactions) + 1, cols=6)
+    tx_table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    tx_table.autofit = False
+
+    col_widths = [Inches(0.9), Inches(0.9), Inches(2.7), Inches(0.9), Inches(0.9), Inches(0.9)]
+
+    # Header Row
+    headers = ["Ημ/νία", "Valeur", "Περιγραφή Συναλλαγής", "Χρέωση (€)", "Πίστωση (€)", "Υπόλοιπο (€)"]
+    hdr_cells = tx_table.rows[0].cells
+    for i, title in enumerate(headers):
+        hdr_cells[i].width = col_widths[i]
+        set_cell_background(hdr_cells[i], "006680")
+        set_cell_margins(hdr_cells[i], top=120, bottom=120, left=80, right=80)
+        p = hdr_cells[i].paragraphs[0]
+        p.paragraph_format.space_after = Pt(0)
+        if i >= 3:
+            p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        else:
+            p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        run = p.add_run(title)
+        run.font.bold = True
+        run.font.size = Pt(8)
+        run.font.color.rgb = RGBColor(255, 255, 255)
+
+    # Repeat Header Row on across pages if needed
+    trPr = tx_table.rows[0]._tr.get_or_add_trPr()
+    trPr.append(parse_xml(f'<w:tblHeader {nsdecls("w")}/>'))
+
+    # Populate Data
+    for row_idx, data in enumerate(transactions, start=1):
+        row_cells = tx_table.rows[row_idx].cells
+        # Zebra striping
+        bg_color = LIGHT_BG if row_idx % 2 == 1 else "FFFFFF"
+        
+        for col_idx, text in enumerate(data):
+            row_cells[col_idx].width = col_widths[col_idx]
+            set_cell_background(row_cells[col_idx], bg_color)
+            set_cell_margins(row_cells[col_idx], top=80, bottom=80, left=80, right=80)
+            p = row_cells[col_idx].paragraphs[0]
+            p.paragraph_format.space_after = Pt(0)
+            
+            # Alignments
+            if col_idx in [0, 1]:
+                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            elif col_idx >= 3:
+                p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+            else:
+                p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+
+            run = p.add_run(text)
+            run.font.name = "Arial"
+            run.font.size = Pt(8)
+            run.font.color.rgb = DARK_TEXT
+            if col_idx == 3 and text:  # Debit
+                run.font.color.rgb = RGBColor(180, 40, 40)
+            elif col_idx == 4 and text: # Credit
+                run.font.color.rgb = RGBColor(0, 120, 60)
+
+    set_table_borders(tx_table, color="DDDDDD", sz="4")
+
+    # --- FOOTER / LEGAL NOTE ---
+    p_foot_space = doc.add_paragraph()
+    p_foot_space.paragraph_format.space_before = Pt(16)
+    p_foot_space.paragraph_format.space_after = Pt(2)
+
+    p_note = doc.add_paragraph()
+    p_note.paragraph_format.space_after = Pt(0)
+    p_note_border = parse_xml(f'<w:pBdr {nsdecls("w")}><w:top w:val="single" w:sz="6" w:space="4" w:color="CCCCCC"/></w:pBdr>')
+    p_note._p.get_or_add_pPr().append(p_note_border)
+    
+    r_note = p_note.add_run(
+        "Σημείωση: Το παρόν έγγραφο αποτελεί ενδεικτική αναλυτική ενημέρωση κίνησης λογαριασμού παράγεται αυτόματα από το σύστημα Internet Banking "
+        "της Εθνικής Τράπεζας. Τα αναγραφόμενα στοιχεία είναι απολύτως εικονικά και δημιουργήθηκαν αποκλειστικά για λόγους επίδειξης/δειγματισμού. "
+        "Για οποιαδήποτε αμφισβήτηση συναλλαγής, παρακαλούμε επικοινωνήστε με το κατάστημα συνεργασίας σας εντός 30 ημερών."
+    )
+    r_note.font.name = "Arial"
+    r_note.font.size = Pt(7.5)
+    r_note.font.color.rgb = GRAY_TEXT
+
+    doc.save(filename)
+
+create_bank_statement_docx()
